@@ -19,10 +19,10 @@ def show_banner():
     print("[green] AutoTap The Vape Labs Bot By: ACHERON[/green]")
     print("[bold green]========================================[/bold green]\n")
 
-# Ambil token dari file
-def load_token():
+# Ambil semua token dari file
+def load_tokens():
     with open("token.txt", "r") as f:
-        return f.read().strip()
+        return [line.strip() for line in f if line.strip()]
 
 # Cek token valid atau tidak
 def is_token_valid(token):
@@ -31,13 +31,10 @@ def is_token_valid(token):
         exp = payload.get("exp", 0)
         remaining = exp - int(time.time())
         if remaining > 0:
-            print(f"[✓] Token valid, expire in {remaining // 60} menit.")
-            return True
-        print("[!] Token sudah expired.")
-        return False
-    except Exception as e:
-        print(f"[!] Gagal decode token: {e}")
-        return False
+            return True, payload.get("username", "?"), remaining
+        return False, None, 0
+    except Exception:
+        return False, None, 0
 
 # Kirim tap untuk isi battery
 def send_tap(tab_number, token):
@@ -80,9 +77,15 @@ def do_upgrade(token, kind):
     print(f"[UPGRADE] Error: {resp.status_code} {resp.text}")
     return False
 
-# Jalankan satu siklus
-def cycle(token):
-    print(f"\n[{datetime.now():%H:%M:%S}] Mulai TAP...")
+# Jalankan satu siklus untuk satu akun
+def run_for_token(token, index):
+    valid, username, remaining = is_token_valid(token)
+    label = f"[Akun {index+1}]"
+    if not valid:
+        print(f"{label} Token invalid atau expired.")
+        return
+    print(f"{label} Mulai sebagai '{username}' (expire dalam {remaining//60} menit)")
+
     for i in range(TAP_LIMIT):
         data = send_tap(i, token)
         if not data:
@@ -93,12 +96,10 @@ def cycle(token):
             break
         time.sleep(TAP_DELAY)
 
-    # Upgrade jika memungkinkan
     print("[⋆] Mengecek peluang upgrade...")
     upgrade_info = get_upgrade_info(token)
     if not upgrade_info:
         return
-
     user_points = upgrade_info["user_info"]["points"]
 
     for tipe in ["auto_earn", "battery"]:
@@ -114,18 +115,11 @@ def cycle(token):
 # === MAIN LOOP ===
 if __name__ == "__main__":
     show_banner()
-    try:
-        import jwt
-    except ImportError:
-        print("Install dulu: pip install pyjwt")
-        exit()
-
     while True:
-        token = load_token()
-        if not is_token_valid(token):
-            print("[×] Token invalid. Update token.txt dulu.")
-            break
-
-        cycle(token)
-        print(f"[⏳] Tunggu {LOOP_DELAY // 3600} jam sebelum siklus selanjutnya...")
+        tokens = load_tokens()
+        for idx, token in enumerate(tokens):
+            print(f"\n================ Akun {idx+1} ================")
+            run_for_token(token, idx)
+            print("========================================\n")
+        print(f"[⏳] Menunggu {LOOP_DELAY // 3600} jam sebelum siklus berikutnya...")
         time.sleep(LOOP_DELAY)
