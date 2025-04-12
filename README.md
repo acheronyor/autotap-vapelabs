@@ -56,5 +56,3 @@ python autotap.py
 Script ini dibuat oleh **ACHERON** sebagai project otomatisasi pribadi.  
 Gunakan dengan bijak, dan DYOR (Do Your Own Research)!
 ```
-
-
