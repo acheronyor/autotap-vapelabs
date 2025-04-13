@@ -12,6 +12,7 @@ UPGRADE_KINDS = {"auto_earn": 1, "battery": 2}
 
 URL_INFO = "https://api.thevapelabs.net/v1.0/user/info"
 URL_UPGRADE = "https://api.thevapelabs.net/v1.0/user/upgrade"
+URL_DAILY = "https://api.thevapelabs.net/v1.0/missions/completed"
 
 def show_banner():
     print("\n[bold green]========================================[/bold green]")
@@ -19,12 +20,10 @@ def show_banner():
     print("[green] AutoTap The Vape Labs Bot By: ACHERON[/green]")
     print("[bold green]========================================[/bold green]\n")
 
-# Ambil semua token dari file
 def load_tokens():
     with open("token.txt", "r") as f:
         return [line.strip() for line in f if line.strip()]
 
-# Cek token valid atau tidak
 def is_token_valid(token):
     try:
         payload = jwt.decode(token, options={"verify_signature": False})
@@ -36,7 +35,6 @@ def is_token_valid(token):
     except Exception:
         return False, None, 0
 
-# Kirim tap untuk isi battery
 def send_tap(tab_number, token):
     headers = {
         "Authorization": f"Bearer {token}",
@@ -49,7 +47,6 @@ def send_tap(tab_number, token):
     print(f"[!] TAP Gagal: {resp.status_code} {resp.text}")
     return None
 
-# Ambil info upgrade
 def get_upgrade_info(token):
     headers = {"Authorization": f"Bearer {token}"}
     resp = requests.get(URL_UPGRADE, headers=headers)
@@ -58,7 +55,6 @@ def get_upgrade_info(token):
     print(f"[!] Gagal ambil info upgrade: {resp.status_code} {resp.text}")
     return None
 
-# Eksekusi upgrade
 def do_upgrade(token, kind):
     headers = {
         "Authorization": f"Bearer {token}",
@@ -77,7 +73,18 @@ def do_upgrade(token, kind):
     print(f"[UPGRADE] Error: {resp.status_code} {resp.text}")
     return False
 
-# Jalankan satu siklus untuk satu akun
+def daily_checkin(token):
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json"
+    }
+    payload = {"task_id": 247, "link": ""}
+    resp = requests.post(URL_DAILY, headers=headers, json=payload)
+    if resp.status_code == 200 and resp.json().get("code") == 200:
+        print("[CHECK-IN] Berhasil klaim daily reward!")
+    else:
+        print(f"[CHECK-IN] Gagal: {resp.status_code} {resp.text}")
+
 def run_for_token(token, index):
     valid, username, remaining = is_token_valid(token)
     label = f"[Akun {index+1}]"
@@ -85,6 +92,8 @@ def run_for_token(token, index):
         print(f"{label} Token invalid atau expired.")
         return
     print(f"{label} Mulai sebagai '{username}' (expire dalam {remaining//60} menit)")
+
+    daily_checkin(token)
 
     for i in range(TAP_LIMIT):
         data = send_tap(i, token)
@@ -112,7 +121,6 @@ def run_for_token(token, index):
         else:
             print(f"[×] Mist kurang untuk upgrade {tipe}: butuh {required}, punya {user_points:.2f}")
 
-# === MAIN LOOP ===
 if __name__ == "__main__":
     show_banner()
     while True:
