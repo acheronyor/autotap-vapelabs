@@ -2,12 +2,14 @@ from rich import print
 import requests
 import time
 import jwt
+import threading
 from datetime import datetime
 
 # === KONFIGURASI ===
 TAP_LIMIT = 100
 TAP_DELAY = 0.3
 LOOP_DELAY = 2 * 60 * 60  # 2 jam dalam detik
+UPGRADE_INTERVAL = 30 * 60  # 30 menit dalam detik
 UPGRADE_KINDS = {"auto_earn": 1, "battery": 2}
 
 URL_INFO = "https://api.thevapelabs.net/v1.0/user/info"
@@ -73,6 +75,25 @@ def do_upgrade(token, kind):
     print(f"[UPGRADE] Error: {resp.status_code} {resp.text}")
     return False
 
+def auto_upgrade_loop(token, label):
+    while True:
+        print(f"\n{label} [UPGRADE] Cek otomatis tiap 30 menit...")
+        upgrade_info = get_upgrade_info(token)
+        if not upgrade_info:
+            time.sleep(UPGRADE_INTERVAL)
+            continue
+        user_points = upgrade_info["user_info"]["points"]
+        for tipe in ["auto_earn", "battery"]:
+            info = upgrade_info[tipe]
+            required = info["point_to_next_level"]
+            if user_points >= required:
+                print(f"{label} [→] Upgrade {tipe} ({required} / {user_points:.2f})")
+                do_upgrade(token, UPGRADE_KINDS[tipe])
+                time.sleep(1)
+            else:
+                print(f"{label} [×] Mist kurang untuk upgrade {tipe}: butuh {required}, punya {user_points:.2f}")
+        time.sleep(UPGRADE_INTERVAL)
+
 def daily_checkin(token):
     headers = {
         "Authorization": f"Bearer {token}",
@@ -93,6 +114,9 @@ def run_for_token(token, index):
         return
     print(f"{label} Mulai sebagai '{username}' (expire dalam {remaining//60} menit)")
 
+    # Jalankan upgrade di thread terpisah
+    threading.Thread(target=auto_upgrade_loop, args=(token, label), daemon=True).start()
+
     daily_checkin(token)
 
     for i in range(TAP_LIMIT):
@@ -104,22 +128,6 @@ def run_for_token(token, index):
             print("[✓] Battery FULL!")
             break
         time.sleep(TAP_DELAY)
-
-    print("[⋆] Mengecek peluang upgrade...")
-    upgrade_info = get_upgrade_info(token)
-    if not upgrade_info:
-        return
-    user_points = upgrade_info["user_info"]["points"]
-
-    for tipe in ["auto_earn", "battery"]:
-        info = upgrade_info[tipe]
-        required = info["point_to_next_level"]
-        if user_points >= required:
-            print(f"[→] Upgrade {tipe} ({required} / {user_points:.2f})")
-            do_upgrade(token, UPGRADE_KINDS[tipe])
-            time.sleep(1)
-        else:
-            print(f"[×] Mist kurang untuk upgrade {tipe}: butuh {required}, punya {user_points:.2f}")
 
 if __name__ == "__main__":
     show_banner()
